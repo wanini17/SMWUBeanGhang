@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>빈강 — 강의실 수업 여부 확인</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#ffffff; --text:#17181c; --muted:#6d7280; --line:#e7e9ef;
+    --green:#1f9d63; --green-bg:#eaf8f1; --red:#d84b4b; --red-bg:#fff0f0;
+    --amber:#b57914; --amber-bg:#fff7e7; --blue:#3157d5; --blue-bg:#eef2ff;
+    --shadow:0 12px 30px rgba(25,35,60,.08); --shadow-lg:0 18px 45px rgba(25,35,60,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;background:var(--bg);color:var(--text)}
+  button,input{font:inherit}
+  button{color:inherit}
+  .app{max-width:1180px;margin:0 auto;padding:24px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;cursor:pointer}
+  .logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#2d5bff,#6f7cff);color:#fff;display:grid;place-items:center;font-weight:800;box-shadow:var(--shadow)}
+  .brand h1{font-size:21px;margin:0}.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+  .clock{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;color:var(--muted);font-size:13px}
+  .screen{display:none}.screen.active{display:block}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
+
+  /* Campus map */
+  .map-hero{padding:28px 30px 22px;margin-bottom:18px;background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--blue-bg);color:var(--blue);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:700}
+  .map-hero h2{font-size:30px;line-height:1.28;margin:16px 0 8px}.map-hero p{color:var(--muted);line-height:1.65;margin:0}
+  .map-summary{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .summary-chip{border:1px solid var(--line);border-radius:14px;background:#fbfcff;padding:10px 12px;font-size:12px;color:var(--muted)}
+  .summary-chip b{color:var(--text);font-size:14px;margin-left:4px}
+
+
+
+  .campus-map{
+    position:relative;
+    min-height:650px;
+    overflow:hidden;
+    background:#fbfbf8;
+    border:1px solid var(--line);
+    border-radius:28px;
+    box-shadow:var(--shadow);
+    margin-bottom:20px;
+  }
+  .map-label{
+    position:absolute;top:18px;left:20px;z-index:20;
+    background:rgba(255,255,255,.95);
+    padding:9px 12px;border:1px solid var(--line);border-radius:12px;
+    color:var(--muted);font-size:12px;box-shadow:0 5px 18px rgba(25,35,60,.06)
+  }
+  .map-compass{
+    position:absolute;right:20px;top:18px;z-index:20;width:42px;height:42px;
+    border-radius:50%;background:#fff;border:1px solid var(--line);
+    display:grid;place-items:center;color:#677080;font-size:11px;font-weight:800;
+    box-shadow:0 5px 18px rgba(25,35,60,.06)
+  }
+  .map-compass:before{content:"↑";position:absolute;top:2px;color:#33415d;font-size:16px}
+  .map-compass span{margin-top:11px}
+
+  /* roads */
+  .road{position:absolute;background:#eceff2;z-index:1}
+  .road.r-top{left:5%;top:11%;width:72%;height:42px;transform:rotate(-7deg);border-radius:999px}
+  .road.r-right{right:17%;top:12%;width:46px;height:74%;transform:rotate(3deg);border-radius:999px}
+  .road.r-middle{left:19%;top:42%;width:63%;height:44px;transform:rotate(4deg);border-radius:999px}
+  .road.r-left{left:19%;top:19%;width:40px;height:64%;transform:rotate(-9deg);border-radius:999px}
+  .road.r-bottom{left:16%;bottom:12%;width:55%;height:42px;transform:rotate(5deg);border-radius:999px}
+  .road.r-center{left:48%;top:28%;width:42px;height:55%;transform:rotate(2deg);border-radius:999px}
+
+  .green-zone{
+    position:absolute;z-index:0;border-radius:30px;background:#eef7e9;border:1px solid #e0edd9;
+  }
+  .gz1{left:6%;top:2%;width:42%;height:21%}
+  .gz2{right:3%;top:21%;width:22%;height:38%}
+  .gz3{left:26%;bottom:2%;width:50%;height:26%}
+
+  /* generic buildings */
+  .bld{
+    position:absolute;z-index:4;background:#f4ecd8;border:2px solid #d8c7a0;
+    border-radius:6px;display:flex;align-items:center;justify-content:center;
+    text-align:center;color:#615947;font-size:11px;font-weight:800;line-height:1.25;
+    box-shadow:0 3px 7px rgba(30,40,55,.05)
+  }
+  .bld.small{font-size:10px}
+  .bld.vertical{writing-mode:vertical-rl;text-orientation:mixed}
+  .bld.target{
+    cursor:pointer;background:#fff;transition:transform .18s ease, box-shadow .18s ease;
+    border-width:4px;box-shadow:0 9px 20px rgba(31,40,58,.12)
+  }
+  .bld.target:hover{transform:translateY(-3px);box-shadow:0 13px 25px rgba(31,40,58,.17)}
+  .bld.target.green{border-color:var(--green);background:#f1fbf6}
+  .bld.target.amber{border-color:var(--amber);background:#fff9eb}
+  .bld.target.red{border-color:var(--red);background:#fff3f3}
+
+  /* map positions based on supplied campus diagram */
+  #music{left:16%;top:22%;width:12%;height:9%}
+  #renaissance{left:29%;top:19%;width:10%;height:11%}
+  #science{left:9%;top:24%;width:6%;height:23%}
+  #art{left:21%;top:37%;width:12%;height:8%}
+  #admin{left:43%;top:31%;width:9%;height:7%}
+  #student{left:43%;top:47%;width:11%;height:8%}
+  #startup{left:39%;top:59%;width:12%;height:10%;transform:rotate(-7deg)}
+  #library{left:15%;top:62%;width:12%;height:12%;transform:rotate(-8deg)}
+  #engineering{left:24%;top:72%;width:15%;height:15%;transform:rotate(6deg)}
+  #dorm{right:18%;bottom:18%;width:12%;height:11%;transform:rotate(-11deg)}
+  #international{right:4%;top:33%;width:6%;height:8%}
+  #social{left:3%;top:10%;width:7%;height:7%}
+  #global7{left:2%;top:16%;width:5%;height:6%}
+  #graduate{left:2%;bottom:21%;width:5%;height:7%}
+  #global6{right:37%;bottom:13%;width:5%;height:7%}
+  #cafeteria{right:29%;top:35%;width:7%;height:8%}
+  #health{right:29%;top:47%;width:7%;height:8%}
+
+  #sunheon{right:32%;top:25%;width:8%;height:30%}
+  #myeongsin{left:47%;top:14%;width:15%;height:9%}
+  #saeheem{left:46%;top:24%;width:8%;height:7%}
+
+  .map-card{
+    position:absolute;z-index:15;min-width:170px;padding:10px 11px;
+    background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 8px 23px rgba(27,37,57,.12);cursor:pointer;text-align:left;
+  }
+  .map-card:hover{box-shadow:0 12px 30px rgba(27,37,57,.17)}
+  .map-card.sunheon{right:5%;top:27%}
+  .map-card.myeongsin{left:60%;top:7%}
+  .map-card.saeheem{left:55%;top:25%}
+  .map-card.music{left:7%;top:16%}
+  .map-card.renaissance{left:30%;top:8%}
+  .map-card.science{left:1%;top:39%}
+  .map-card.art{left:17%;top:45%}
+  .map-card.engineering{left:10%;bottom:4%}
+  .map-card .head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .map-card .head strong{font-size:13px}
+  .map-card .state{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800}
+  .map-card .state i{width:8px;height:8px;border-radius:50%}
+  .map-card.green .state{color:var(--green)} .map-card.green .state i{background:var(--green)}
+  .map-card.amber .state{color:var(--amber)} .map-card.amber .state i{background:var(--amber)}
+  .map-card.red .state{color:var(--red)} .map-card.red .state i{background:var(--red)}
+  .map-card .count{display:flex;align-items:baseline;gap:4px;margin-top:6px;font-size:10px;color:var(--muted)}
+  .map-card .count b{font-size:17px;color:var(--text)}
+  .map-card .go{margin-left:auto;color:#7b8290}
+
+  .map-key{
+    position:absolute;left:20px;bottom:18px;z-index:20;display:flex;gap:7px;flex-wrap:wrap;
+    background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:13px;padding:8px 10px;
+    color:var(--muted);font-size:10px
+  }
+  .map-key span{display:flex;align-items:center;gap:5px}
+  .map-key i{width:8px;height:8px;border-radius:50%}
+  .map-note{padding:12px 14px;border-radius:14px;background:#fafbfe;border:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.55}
+
+  /* Building detail */
+  .detail-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .back-btn{border:1px solid var(--line);background:#fff;border-radius:13px;padding:10px 13px;cursor:pointer;box-shadow:var(--shadow)}
+  .back-btn:hover{background:#fafbfe}
+  .detail-title h2{margin:0;font-size:24px}.detail-title p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .detail-summary{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .detail-chip{border:1px solid var(--line);background:#fff;border-radius:13px;padding:9px 11px;font-size:12px;color:var(--muted)}.detail-chip b{color:var(--text);margin-left:3px}
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:20px}
+  .sidebar{padding:18px}.main{padding:20px}
+  .section-title{display:flex;align-items:end;justify-content:space-between;margin-bottom:14px}.section-title h3{margin:0;font-size:17px}.section-title span{font-size:12px;color:var(--muted)}
+  .building-list{display:grid;gap:10px}
+  .building{width:100%;text-align:left;border:1px solid var(--line);background:#fff;padding:14px;border-radius:16px;cursor:pointer;transition:.18s ease}
+  .building:hover{transform:translateY(-1px);border-color:#cfd5e5}.building.active{border-color:#9caaf1;background:#f6f8ff}
+  .building-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.building strong{font-size:15px}.building small{display:block;color:var(--muted);margin-top:4px}
+  .count{font-size:12px;border-radius:999px;padding:6px 9px;font-weight:700}.count.green{background:var(--green-bg);color:var(--green)}.count.amber{background:var(--amber-bg);color:var(--amber)}.count.red{background:var(--red-bg);color:var(--red)}
+  .building-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}.building-head h3{margin:0;font-size:22px}.building-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .search{display:flex;gap:8px;margin-bottom:16px}.search input{flex:1;border:1px solid var(--line);background:#fbfcff;border-radius:13px;padding:11px 13px;outline:none}.search input:focus{border-color:#9aaaf3;box-shadow:0 0 0 4px rgba(49,87,213,.08)}.search button{border:0;border-radius:13px;padding:0 15px;background:#1d2433;color:#fff;font-weight:700;cursor:pointer}
+  .floors{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 18px}.floor-btn{border:1px solid var(--line);background:#fff;padding:9px 13px;border-radius:12px;cursor:pointer}.floor-btn.active{background:#1d2433;color:#fff;border-color:#1d2433}
+  .rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.room{border:1px solid var(--line);border-radius:18px;padding:16px;background:#fff}.room-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.room h4{margin:0;font-size:16px}.room .meta{margin:5px 0 0;color:var(--muted);font-size:12px}
+  .status{font-size:12px;font-weight:800;border-radius:999px;padding:7px 10px;white-space:nowrap}.status.free{color:var(--green);background:var(--green-bg)}.status.busy{color:var(--red);background:var(--red-bg)}.status.soon{color:var(--amber);background:var(--amber-bg)}
+  .timeline{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;color:#3e4350}.timeline b{color:var(--text)}.empty{padding:30px;text-align:center;color:var(--muted);display:none}
+  .footer{margin:24px 0 4px;text-align:center;color:#8a8f9d;font-size:11px}
+
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr}.sidebar{display:none}.rooms{grid-template-columns:1fr}.clock{display:none}.campus-map{min-height:610px}.map-card{min-width:145px}.map-card.sunheon{right:2%;top:27%}.map-card.myeongsin{left:57%;top:7%}.map-card.saeheem{left:52%;top:25%}
+  }
+
+  .availability-box{
+    margin-top:14px;padding:12px 13px;border-radius:13px;
+    background:#f7f9fc;border:1px solid #edf0f5;
+  }
+  .availability-label{
+    display:block;color:var(--muted);font-size:11px;font-weight:700;margin-bottom:4px;
+  }
+  .availability-time{
+    display:block;color:var(--text);font-size:14px;font-weight:850;line-height:1.45;
+  }
+  .next-class{
+    margin-top:8px;color:#444b59;font-size:12px;line-height:1.55;
+  }
+  .today-schedule{
+    margin-top:10px;padding-top:10px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:11px;line-height:1.5;
+  }
+
+  /* Responsive campus map */
+  .campus-map-wrap{
+    width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    border-radius:28px;
+    margin-bottom:20px;
+  }
+
+  .campus-map{
+    min-width:920px;
+    width:100%;
+  }
+
+  @media (max-width: 900px){
+    .campus-map-wrap{
+      border:1px solid var(--line);
+      background:#fbfbf8;
+      box-shadow:var(--shadow);
+    }
+
+    .campus-map{
+      width:920px;
+      min-width:920px;
+      min-height:610px;
+      margin-bottom:0;
+      border:0;
+      box-shadow:none;
+      border-radius:0;
+    }
+
+    .map-label{
+      position:sticky;
+      left:16px;
+      width:max-content;
+    }
+
+    .map-compass{
+      display:none;
+    }
+
+    .map-card{
+      min-width:138px;
+      padding:8px 9px;
+      border-radius:12px;
+    }
+
+    .map-card .head strong{
+      font-size:12px;
+    }
+
+    .map-card .state{
+      font-size:9px;
+    }
+
+    .map-card .count{
+      font-size:9px;
+    }
+
+    .map-card .count b{
+      font-size:15px;
+    }
+
+    .map-key{
+      left:14px;
+      bottom:14px;
+      max-width:330px;
+    }
+  }
+
+  @media (max-width: 620px){
+    .app{
+      padding:12px;
+    }
+
+    .topbar{
+      margin-bottom:16px;
+    }
+
+    .brand h1{
+      font-size:18px;
+    }
+
+    .brand p{
+      font-size:11px;
+    }
+
+    .campus-map-wrap{
+      border-radius:18px;
+      margin-left:-2px;
+      margin-right:-2px;
+    }
+
+    .campus-map{
+      width:860px;
+      min-width:860px;
+      min-height:570px;
+    }
+
+    .map-label{
+      top:12px;
+      left:12px;
+      font-size:10px;
+      padding:7px 9px;
+    }
+
+    .map-key{
+      font-size:9px;
+      padding:7px 8px;
+      gap:5px;
+      max-width:300px;
+    }
+
+    .map-note{
+      font-size:11px;
+    }
+
+    .layout{
+      grid-template-columns:1fr;
+    }
+
+    .sidebar{
+      order:1;
+    }
+
+    .main{
+      order:2;
+      padding:16px;
+    }
+
+    .building-head{
+      align-items:flex-start;
+      flex-direction:column;
+    }
+
+    .rooms{
+      grid-template-columns:1fr;
+    }
+
+    .floors{
+      gap:6px;
+    }
+
+    .floor-btn{
+      padding:8px 11px;
+      font-size:12px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand" onclick="showMap()">
+      <div class="logo">빈강</div>
+      <div><h1>빈강</h1><p>강의실 수업 여부를 한눈에</p></div>
+    </div>
+    <div class="clock" id="clock">현재 시각 불러오는 중</div>
+  </header>
+
+  <section id="mapScreen" class="screen active">
+    <div class="map-hero">
+      <span class="eyebrow">● 캠퍼스 강의실 현황</span>
+      <h2>건물을 눌러 현재 강의실 현황을 확인하세요.</h2>
+      <p>건물별 전체 강의실 수와 현재 시간표상 수업이 없는 강의실 수를 비교하고, 원하는 건물로 바로 들어갈 수 있습니다.</p>
+      <div class="map-summary" id="mapSummary"></div>
+    </div>
+
+    <div class="campus-map-wrap">
+<div class="campus-map" id="campusMap">
+      <div class="map-label">숙명여자대학교 캠퍼스 · 단순화 미니맵</div>
+      <div class="map-compass"><span>N</span></div>
+
+      <div class="green-zone gz1"></div>
+      <div class="green-zone gz2"></div>
+      <div class="green-zone gz3"></div>
+
+      <div class="road r-top"></div>
+      <div class="road r-right"></div>
+      <div class="road r-middle"></div>
+      <div class="road r-left"></div>
+      <div class="road r-bottom"></div>
+      <div class="road r-center"></div>
+
+      <!-- surrounding buildings: simple blocks only -->
+      <div class="bld target" id="music" data-building="음악대학">음악대학</div>
+      <div class="bld target small" id="renaissance" data-building="르네상스 플라자">르네상스<br>플라자</div>
+      <div class="bld target vertical" id="science" data-building="과학대학">과학대학</div>
+      <div class="bld target" id="art" data-building="미술대학">미술대학</div>
+      <div class="bld" id="admin">행정관</div>
+      <div class="bld" id="student">학생회관</div>
+      <div class="bld small" id="startup">창업보육센터</div>
+      <div class="bld" id="library">중앙도서관</div>
+      <div class="bld target" id="engineering" data-building="이과대학">이과대학</div>
+      <div class="bld" id="dorm">기숙사</div>
+      <div class="bld small" id="international">국제<br>5관</div>
+      <div class="bld small" id="social">사회교육관</div>
+      <div class="bld small" id="global7">국제<br>7관</div>
+      <div class="bld small" id="graduate">국제<br>관</div>
+      <div class="bld small" id="global6">국제<br>6관</div>
+      <div class="bld small" id="cafeteria">수련<br>교수회관</div>
+      <div class="bld small" id="health">백주년<br>기념관</div>
+
+      <!-- interactive buildings -->
+      <div class="bld target" id="sunheon" data-building="순헌관">순헌관</div>
+      <div class="bld target" id="myeongsin" data-building="명신관">명신관</div>
+      <div class="bld target" id="saeheem" data-building="새힘관">새힘관</div>
+
+      <button class="map-card music" data-building="음악대학"></button>
+      <button class="map-card renaissance" data-building="르네상스 플라자"></button>
+      <button class="map-card science" data-building="과학대학"></button>
+      <button class="map-card art" data-building="미술대학"></button>
+      <button class="map-card engineering" data-building="이과대학"></button>
+      <button class="map-card sunheon" data-building="순헌관"></button>
+      <button class="map-card myeongsin" data-building="명신관"></button>
+      <button class="map-card saeheem" data-building="새힘관"></button>
+
+      <div class="map-key">
+        <span><i style="background:var(--green)"></i>여유로움</span>
+        <span><i style="background:var(--amber)"></i>보통</span>
+        <span><i style="background:var(--red)"></i>혼잡</span>
+        <span>회색/베이지 건물은 배치 참고용</span>
+      </div>
+    </div>
+</div>
+    <div class="map-note" style="margin-bottom:10px">📱 작은 화면에서는 지도를 좌우로 스크롤해 전체 캠퍼스를 확인할 수 있습니다.</div>
+    <div class="map-note">※ 캠퍼스 배치는 제공해주신 안내도를 바탕으로 단순화했습니다. 과학대학·음악대학·르네상스 플라자·미술대학·이과대학도 수업 건물로 색상 표시하고 클릭할 수 있습니다. 명신관 호실 목록은 제공해주신 실제 정보를 반영했습니다. 건물을 선택하면 검색 없이 층별 강의실의 수업 여부와 다음 수업 전까지의 사용 가능 시간을 바로 확인할 수 있으며, 수업 시간은 프로토타입용 예시 데이터입니다.</div>
+  </section>
+
+  <section id="detailScreen" class="screen">
+    <div class="detail-head">
+      <button class="back-btn" onclick="showMap()">← 캠퍼스 지도</button>
+      <div class="detail-title"><h2 id="detailBuildingName">순헌관</h2><p>층을 선택하면 강의실별 현재 수업 여부와 사용 가능한 시간을 확인할 수 있습니다.</p></div>
+      <div class="detail-summary" id="detailSummary"></div>
+    </div>
+
+    <div class="layout">
+      <aside class="panel sidebar">
+        <div class="section-title"><h3>건물</h3><span id="buildingCountLabel"></span></div>
+        <div class="building-list" id="buildingList"></div>
+      </aside>
+
+      <main class="panel main">
+        <div class="building-head">
+          <div><h3 id="buildingTitle"></h3><p id="buildingDesc"></p></div>
+        </div>
+        <div class="floors" id="floorTabs"></div>
+        <div class="rooms" id="rooms"></div>
+        <div class="empty" id="empty">이 층에 표시할 강의실이 없습니다.</div>
+      </main>
+    </div>
+  </section>
+
+  <div class="footer">Prototype v4 · floor-by-floor classroom availability · sample timetable data</div>
+</div>
+
+<script>
+const demoSchedules = [
+  [["09:00","10:15"],["13:00","14:15"]],
+  [["10:30","11:45"],["15:00","16:15"]],
+  [["12:00","13:15"],["16:30","17:45"]],
+  [["09:00","10:15"],["14:30","15:45"]],
+  [["10:30","11:45"],["13:00","14:15"],["16:00","17:15"]],
+  [["15:00","16:15"]],
+  [["09:00","11:45"]],
+  [["13:00","14:15"]],
+  [["14:30","15:45"]],
+  [["10:30","11:45"],["16:30","17:45"]]
+];
+
+function demoRoom(room, index, type="일반 강의실"){
+  return {room, type, schedule: demoSchedules[index % demoSchedules.length]};
+}
+
+const data = {
+  "순헌관": {
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "1층":[
+        demoRoom("101호",0), demoRoom("102호",1), demoRoom("103호",2)
+      ],
+      "2층":[
+        demoRoom("201호",6), demoRoom("203호",7), demoRoom("205호",9)
+      ],
+      "4층":[
+        demoRoom("401호",4), demoRoom("402호",1), demoRoom("403호",2), demoRoom("405호",5)
+      ],
+      "5층":[
+        demoRoom("501호",6), demoRoom("507호",8), demoRoom("512호",2)
+      ]
+    }
+  },
+
+  "명신관":{
+    desc:"주요 이용 강의동 · 실제 호실 목록 반영 · 시간표는 예시 데이터",
+    floors:{
+      "2층":[
+        demoRoom("215호",0),
+        demoRoom("221호",1)
+      ],
+      "3층":[
+        demoRoom("301호",2),
+        demoRoom("302호",3),
+        demoRoom("303호",4),
+        demoRoom("304호",5),
+        demoRoom("305호",6,"프로그래밍 실습실"),
+        demoRoom("308호",7),
+        demoRoom("309호",8),
+        demoRoom("310호",9),
+        demoRoom("313호",0),
+        demoRoom("315호",1),
+        demoRoom("316호",2),
+        demoRoom("317호",3),
+        demoRoom("318호",4),
+        demoRoom("319호",5),
+        demoRoom("320호",6),
+        demoRoom("321호",7),
+        demoRoom("322호",8)
+      ],
+      "4층":[
+        demoRoom("413호",9),
+        demoRoom("414호",0),
+        demoRoom("415호",1),
+        demoRoom("416호",2),
+        demoRoom("417호",3),
+        demoRoom("418호",4),
+        demoRoom("420호",5),
+        demoRoom("421호",6),
+        demoRoom("423호",7)
+      ],
+      "5층":[
+        demoRoom("516호",8),
+        demoRoom("519호",9),
+        demoRoom("520호",0),
+        demoRoom("521호",1),
+        demoRoom("522호",2),
+        demoRoom("523호",3),
+        demoRoom("524호",4),
+        demoRoom("525호",5)
+      ],
+      "6층":[
+        demoRoom("601호",6),
+        demoRoom("602호",7),
+        demoRoom("603호",8),
+        demoRoom("605호",9),
+        demoRoom("606호",0),
+        demoRoom("607호",1),
+        demoRoom("608호",2),
+        demoRoom("609호",3),
+        demoRoom("610호",4),
+        demoRoom("612호",5),
+        demoRoom("613호",6),
+        demoRoom("614호",7),
+        demoRoom("615호",8),
+        demoRoom("616호",9),
+        demoRoom("617호",0),
+        demoRoom("620호",1),
+        demoRoom("621호",2),
+        demoRoom("622호",3),
+        demoRoom("624호",4)
+      ],
+      "7층":[
+        demoRoom("702호",5)
+      ]
+    }
+  },
+
+  "새힘관":{
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "1층":[demoRoom("101호",1),demoRoom("104호",4)],
+      "2층":[demoRoom("201호",3),demoRoom("202호",2)]
+    }
+  },
+
+  "과학대학":{
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "2층":[demoRoom("201호",0),demoRoom("207호",1)],
+      "3층":[demoRoom("301호",2),demoRoom("305호",8)],
+      "4층":[demoRoom("401호",5),demoRoom("404호",3)]
+    }
+  },
+
+  "음악대학":{
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "1층":[demoRoom("110호",0),demoRoom("112호",1)],
+      "2층":[demoRoom("210호",2),demoRoom("214호",3)],
+      "3층":[demoRoom("310호",9),demoRoom("318호",8)]
+    }
+  },
+
+  "르네상스 플라자":{
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "1층":[demoRoom("101호",3),demoRoom("105호",4)],
+      "2층":[demoRoom("201호",1),demoRoom("204호",2)]
+    }
+  },
+
+  "미술대학":{
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "1층":[demoRoom("102호",4),demoRoom("108호",5)],
+      "2층":[demoRoom("201호",3),demoRoom("205호",2)],
+      "3층":[demoRoom("301호",8),demoRoom("303호",6)]
+    }
+  },
+
+  "이과대학":{
+    desc:"강의동 · 예시 데이터",
+    floors:{
+      "1층":[demoRoom("110호",0),demoRoom("118호",1)],
+      "2층":[demoRoom("210호",2),demoRoom("214호",5)],
+      "3층":[demoRoom("310호",8),demoRoom("318호",9)],
+      "4층":[demoRoom("410호",1),demoRoom("414호",7)]
+    }
+  }
+};
+
+let currentBuilding="명신관", currentFloor="2층", query="";
+function mins(t){const [h,m]=t.split(":").map(Number);return h*60+m}
+function nowMins(){const d=new Date();return d.getHours()*60+d.getMinutes()}
+function durationText(minutes){
+  if(minutes<=0)return "0분";
+  const h=Math.floor(minutes/60),m=minutes%60;
+  if(h&&m)return `${h}시간 ${m}분`;
+  if(h)return `${h}시간`;
+  return `${m}분`;
+}
+function timeNowText(){
+  const d=new Date();
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+function getStatus(room){
+  const now=nowMins();
+  const schedule=[...(room.schedule||[])].sort((a,b)=>mins(a[0])-mins(b[0]));
+
+  for(let i=0;i<schedule.length;i++){
+    const [s,e]=schedule[i];
+    const start=mins(s),end=mins(e);
+
+    if(now>=start&&now<end){
+      const next=schedule.slice(i+1).find(x=>mins(x[0])>end);
+
+      if(next){
+        const gap=mins(next[0])-end;
+        return{
+          type:"busy",
+          label:"수업 중",
+          currentText:`현재 수업 ${s}~${e}`,
+          availability:gap>0
+            ? `${e} ~ ${next[0]} (${durationText(gap)} 사용 가능)`
+            : `${e} 이후 바로 다음 수업`,
+          nextText:`다음 수업 ${next[0]}~${next[1]}`
+        };
+      }
+
+      return{
+        type:"busy",
+        label:"수업 중",
+        currentText:`현재 수업 ${s}~${e}`,
+        availability:`${e} 이후 오늘 남은 시간 사용 가능`,
+        nextText:"이 수업 이후 오늘 예정된 수업 없음"
+      };
+    }
+  }
+
+  const next=schedule.find(x=>mins(x[0])>now);
+
+  if(next){
+    const diff=mins(next[0])-now;
+    return{
+      type:diff<=30?"soon":"free",
+      label:diff<=30?"곧 수업":"수업 없음",
+      currentText:"현재 수업 없음",
+      availability:`${timeNowText()} ~ ${next[0]} (${durationText(diff)} 사용 가능)`,
+      nextText:`다음 수업 ${next[0]}~${next[1]}`
+    };
+  }
+
+  return{
+    type:"free",
+    label:"수업 없음",
+    currentText:"현재 수업 없음",
+    availability:"지금부터 오늘 남은 시간 사용 가능",
+    nextText:"오늘 예정된 다음 수업 없음"
+  };
+}
+function buildingStats(name){
+  const rooms=Object.values(data[name].floors).flat();
+  let free=0,busy=0,soon=0;
+  rooms.forEach(r=>{const t=getStatus(r).type;if(t==="free")free++;else if(t==="busy")busy++;else soon++});
+  return{total:rooms.length,free,busy,soon,ratio:rooms.length?free/rooms.length:0};
+}
+function levelFor(stats){return stats.ratio>=.5?"green":stats.ratio>=.25?"amber":"red"}
+function stateLabel(level){return level==="green"?"여유로움":level==="amber"?"보통":"혼잡"}
+
+function renderMap(){
+  let total=0,free=0;
+  const cardClass={
+    "음악대학":"music",
+    "르네상스 플라자":"renaissance",
+    "과학대학":"science",
+    "미술대학":"art",
+    "이과대학":"engineering",
+    "순헌관":"sunheon",
+    "명신관":"myeongsin",
+    "새힘관":"saeheem"
+  };
+
+  Object.keys(data).forEach(name=>{
+    const s=buildingStats(name);
+    total+=s.total;
+    free+=s.free;
+    const level=levelFor(s);
+
+    const shape=document.querySelector(`.bld.target[data-building="${name}"]`);
+    if(shape){
+      const kept=shape.className.split(" ").filter(c=>!["green","amber","red"].includes(c));
+      shape.className=[...new Set([...kept,level])].join(" ");
+      shape.onclick=()=>openBuilding(name);
+      shape.setAttribute("tabindex","0");
+      shape.setAttribute("role","button");
+      shape.setAttribute("aria-label",`${name} 건물 상세 보기`);
+      shape.onkeydown=(e)=>{if(e.key==="Enter"||e.key===" ")openBuilding(name)};
+    }
+
+    const card=document.querySelector(`.map-card[data-building="${name}"]`);
+    if(card){
+      card.className=`map-card ${cardClass[name]} ${level}`;
+      card.innerHTML=`
+        <div class="head">
+          <strong>${name}</strong>
+          <span class="state"><i></i>${stateLabel(level)}</span>
+        </div>
+        <div class="count">
+          <span>수업 없음</span>
+          <b>${s.free}</b>
+          <span>/ ${s.total}실</span>
+          <span class="go">보기 →</span>
+        </div>`;
+      card.onclick=()=>openBuilding(name);
+    }
+  });
+
+  document.getElementById("mapSummary").innerHTML=
+    `<div class="summary-chip">전체 강의실 <b>${total}</b></div>
+     <div class="summary-chip">현재 수업 없음 <b>${free}</b></div>
+     <div class="summary-chip">수업 건물 <b>${Object.keys(data).length}</b></div>`;
+}
+function showMap(){document.getElementById("mapScreen").classList.add("active");document.getElementById("detailScreen").classList.remove("active");renderMap();window.scrollTo({top:0,behavior:"smooth"})}
+function openBuilding(name){
+  currentBuilding=name;
+  const floors=Object.keys(data[name].floors);
+  currentFloor=floors[0];
+  query="";
+  document.getElementById("mapScreen").classList.remove("active");
+  document.getElementById("detailScreen").classList.add("active");
+  renderDetail();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function renderBuildings(){
+  const wrap=document.getElementById("buildingList");
+  wrap.innerHTML="";
+
+  const preferred=["명신관","순헌관"];
+  const rest=Object.keys(data)
+    .filter(name=>!preferred.includes(name))
+    .sort((a,b)=>a.localeCompare(b,"ko"));
+  const names=[...preferred.filter(name=>data[name]),...rest];
+
+  const countLabel=document.getElementById("buildingCountLabel");
+  if(countLabel)countLabel.textContent=`${names.length}개 건물`;
+
+  names.forEach(name=>{
+    const stats=buildingStats(name);
+    const btn=document.createElement("button");
+    btn.className="building"+(name===currentBuilding?" active":"");
+    btn.innerHTML=`
+      <div class="building-row">
+        <div>
+          <strong>${name}</strong>
+          <small>${Object.keys(data[name].floors).length}개 층 표시</small>
+        </div>
+        <span class="count">${stats.free}/${stats.total} 여유</span>
+      </div>`;
+    btn.onclick=()=>{
+      currentBuilding=name;
+      currentFloor=Object.keys(data[name].floors)[0];
+      query="";
+      renderDetail();
+    };
+    wrap.appendChild(btn);
+  });
+}
+function renderFloors(){
+  const wrap=document.getElementById("floorTabs");
+  wrap.innerHTML="";
+  Object.keys(data[currentBuilding].floors).forEach(f=>{
+    const b=document.createElement("button");
+    b.className="floor-btn"+(f===currentFloor?" active":"");
+    b.textContent=f;
+    b.onclick=()=>{
+      currentFloor=f;
+      query="";
+      renderFloors();
+      renderRooms();
+    };
+    wrap.appendChild(b);
+  });
+}
+function renderRooms(){
+  const wrap=document.getElementById("rooms");
+  const empty=document.getElementById("empty");
+  wrap.innerHTML="";
+
+  const rooms=data[currentBuilding].floors[currentFloor]||[];
+  empty.style.display=rooms.length?"none":"block";
+
+  rooms.forEach(r=>{
+    const st=getStatus(r);
+    const card=document.createElement("div");
+    card.className="room";
+    card.innerHTML=`
+      <div class="room-top">
+        <div>
+          <h4>${r.room}</h4>
+          <div class="meta">${r.type||"일반 강의실"}</div>
+        </div>
+        <span class="status ${st.type}">${st.label}</span>
+      </div>
+
+      <div class="availability-box">
+        <span class="availability-label">사용 가능 시간</span>
+        <span class="availability-time">${st.availability}</span>
+        <div class="next-class">
+          ${st.currentText}<br>
+          ${st.nextText}
+        </div>
+      </div>
+
+      <div class="today-schedule">
+        오늘 수업 시간 · ${r.schedule.map(s=>s.join("~")).join(" · ")||"없음"}
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+function renderDetail(){
+  const s=buildingStats(currentBuilding),level=levelFor(s);document.getElementById("detailBuildingName").textContent=currentBuilding;document.getElementById("buildingTitle").textContent=currentBuilding;document.getElementById("buildingDesc").textContent=data[currentBuilding].desc;
+  document.getElementById("detailSummary").innerHTML=`<div class="detail-chip">전체 <b>${s.total}</b></div><div class="detail-chip">수업 없음 <b>${s.free}</b></div><div class="detail-chip"><span class="count ${level}">${stateLabel(level)}</span></div>`;
+  renderBuildings();renderFloors();renderRooms();
+}
+function tick(){const d=new Date(),days=["일","월","화","수","목","금","토"],p=n=>String(n).padStart(2,"0");document.getElementById("clock").textContent=`${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]}) ${p(d.getHours())}:${p(d.getMinutes())}`}
+setInterval(()=>{tick();renderMap();if(document.getElementById("detailScreen").classList.contains("active"))renderDetail()},60000);tick();renderMap();
+</script>
+</body>
+</html>
